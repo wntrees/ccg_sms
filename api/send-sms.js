@@ -3,14 +3,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { accountSid, authToken, fromNumber } = {
-    accountSid: process.env.TWILIO_ACCOUNT_SID,
-    authToken:  process.env.TWILIO_AUTH_TOKEN,
-    fromNumber: process.env.TWILIO_PHONE_NUMBER,
-  };
+  const accountSid         = process.env.TWILIO_ACCOUNT_SID;
+  const authToken          = process.env.TWILIO_AUTH_TOKEN;
+  const messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-  if (!accountSid || !authToken || !fromNumber) {
-    return res.status(500).json({ error: "Twilio environment variables not configured." });
+  if (!accountSid || !authToken || !messagingServiceSid) {
+    return res.status(500).json({
+      error: "Missing Twilio environment variables. Make sure TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_MESSAGING_SERVICE_SID are set in Vercel."
+    });
   }
 
   const { messages } = req.body;
@@ -31,7 +31,11 @@ export default async function handler(req, res) {
           Authorization: `Basic ${auth}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ To: to, From: fromNumber, Body: body }).toString(),
+        body: new URLSearchParams({
+          To:                   to,
+          MessagingServiceSid:  messagingServiceSid,
+          Body:                 body,
+        }).toString(),
       });
 
       const data = await response.json();
@@ -40,14 +44,14 @@ export default async function handler(req, res) {
         results.sent++;
       } else {
         results.failed++;
-        results.errors.push({ to, error: data.message || "Unknown error" });
+        results.errors.push({ to, error: data.message || "Unknown Twilio error" });
       }
     } catch (err) {
       results.failed++;
       results.errors.push({ to, error: err.message });
     }
 
-    // Small delay between messages to respect Twilio rate limits
+    // 100ms delay between messages to respect Twilio rate limits
     await new Promise((r) => setTimeout(r, 100));
   }
 
